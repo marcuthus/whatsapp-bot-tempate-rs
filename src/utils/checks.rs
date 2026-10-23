@@ -7,13 +7,14 @@ pub fn is_bot_owner_id(id: &str, admin_number: &str) -> bool {
     !admin_number.is_empty() && id == admin_number
 }
 
-pub fn require_bot_owner(ctx: &Context) -> Result<(), Error> {
-    let is_owner = ctx
-        .author_ids()
+pub fn is_bot_owner(ctx: &Context) -> bool {
+    ctx.author_ids()
         .iter()
-        .any(|id| is_bot_owner_id(id, &ctx.data.config.admin_number));
+        .any(|id| is_bot_owner_id(id, &ctx.data.config.admin_number))
+}
 
-    if is_owner {
+pub fn require_bot_owner(ctx: &Context) -> Result<(), Error> {
+    if is_bot_owner(ctx) {
         Ok(())
     } else {
         Err(CommandError::PermissionDenied.into())

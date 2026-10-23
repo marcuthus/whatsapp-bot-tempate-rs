@@ -21,7 +21,7 @@ const CATEGORY_LABELS: [(&str, &str); 4] = [
     ("admin", "🔐 Administração"),
 ];
 
-const CATALOG: [(&str, &str, &str); 8] = [
+const CATALOG: [(&str, &str, &str); 9] = [
     ("info", "ping", "Envia o ping do bot."),
     (
         "info",
@@ -31,6 +31,11 @@ const CATALOG: [(&str, &str, &str); 8] = [
     ("info", "help", "Exibe esta ajuda."),
     ("info", "menu", "Exibe o menu de comandos por categoria."),
     ("group", "groupid", "Mostra o ID do grupo."),
+    (
+        "group",
+        "ban",
+        "Bane um membro do grupo (apenas administradores). Uso: {prefix}ban @pessoa",
+    ),
     (
         "group",
         "members",
@@ -56,6 +61,7 @@ pub enum Command {
     Menu,
     Members,
     GroupId,
+    Ban,
     Sum(f64, f64),
     Uptime,
 }
@@ -95,6 +101,10 @@ impl Command {
             "menu" => Self::Menu,
             "members" => Self::Members,
             "groupid" => Self::GroupId,
+            "ban" => {
+                arguments.next();
+                Self::Ban
+            }
             "sum" => Self::Sum(
                 number(arguments.next(), "a")?,
                 number(arguments.next(), "b")?,
@@ -145,6 +155,7 @@ impl Command {
             Self::Menu => "menu",
             Self::Members => "members",
             Self::GroupId => "groupid",
+            Self::Ban => "ban",
             Self::Sum(..) => "sum",
             Self::Uptime => "uptime",
         }
@@ -214,6 +225,7 @@ async fn run(ctx: &Context, command: &Command) -> Result<(), Error> {
         Command::Menu => info::menu::run(ctx).await,
         Command::Members => group::members::run(ctx).await,
         Command::GroupId => group::group_id::run(ctx).await,
+        Command::Ban => group::ban::run(ctx).await,
         Command::Sum(a, b) => example::sum::run(ctx, *a, *b).await,
         Command::Uptime => admin::uptime::run(ctx).await,
     }
@@ -251,6 +263,12 @@ mod tests {
         assert_eq!(parse("!id"), Some(Ok(Command::Id)));
         assert_eq!(parse("!id @5511999999999"), Some(Ok(Command::Id)));
         assert_eq!(parse("!id @1 @2"), Some(Err(ParseError::TooManyArguments)));
+    }
+
+    #[test]
+    fn ban_accepts_a_single_mention() {
+        assert_eq!(parse("!ban @5511999999999"), Some(Ok(Command::Ban)));
+        assert_eq!(parse("!ban @1 @2"), Some(Err(ParseError::TooManyArguments)));
     }
 
     #[test]
