@@ -59,7 +59,9 @@ Use `whatsapp_rust::prelude::*` for the common client types (`Bot`, `MessageCont
 - Declare each command as a variant of the `Command` enum in `src/commands/mod.rs`, with an entry in `CATALOG` (category, name, description; used by `!help` and `!menu`, and the category must exist in `CATEGORY_LABELS`). Arguments are the variant fields, read in order in `Command::from_parts` through helpers such as `number`; parse errors (`ParseError`) are reported to the user automatically.
 - Commands are triggered by `Config::prefix` (default `!`) and are case-insensitive. Unknown commands are ignored silently, and the bot's own messages are skipped.
 - Place the implementation in `src/commands/<category>/<command_name>.rs` exposing `pub async fn run(ctx: &Context, ...)`, and dispatch it in the `match` of `commands::run`.
-- Restrict to the bot owner with `require_bot_owner(ctx)?` (`src/utils/checks.rs`); it compares `WHATSAPP_ADMIN_NUMBER` with the sender's number and LID alternate.
+- Restrict to the bot owner with `require_bot_owner(ctx)?` and to group admins (or the owner) with `require_group_admin(ctx).await?` (`src/utils/checks.rs`, returns the group metadata and fails with `CommandError::NotInGroup` / `PermissionDenied`); it compares `WHATSAPP_ADMIN_NUMBER` with the sender's number and LID alternate.
+- Command names may contain hyphens (`add-member`); free-text arguments (e.g. `create-group <nome>`) are joined in `Command::from_parts`.
+- `sticker [crop] [center]` converts images with the `image` and `webp` crates (static stickers only): `crop` is `true` (fill and crop, default), `false` (fit with transparent bars) or `dented` (stretched); `center` is `true` (default) or `false` (anchor top-left). Options are parsed by `StickerOptions::parse`.
 - Replies use WhatsApp formatting (`*bold*`, `_italic_`, `~strike~`, `` `mono` ``); there is no HTML and no escaping.
 
 **Events:**

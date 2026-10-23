@@ -22,7 +22,9 @@ impl Context {
     }
 
     pub fn text(&self) -> Option<&str> {
-        self.message.message.text_content()
+        let message = self.message.message.get_base_message();
+
+        message.text_content().or_else(|| message.get_caption())
     }
 
     pub fn author_ids(&self) -> Vec<String> {

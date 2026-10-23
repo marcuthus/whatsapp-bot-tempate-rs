@@ -2,6 +2,7 @@ mod admin;
 mod example;
 mod group;
 mod info;
+mod media;
 
 use std::sync::Arc;
 
@@ -9,19 +10,22 @@ use thiserror::Error;
 use tracing::{error, info};
 use whatsapp_rust::prelude::*;
 
+use media::sticker::StickerOptions;
+
 use crate::{
     data::{Context, Data, Error},
     error,
 };
 
-const CATEGORY_LABELS: [(&str, &str); 4] = [
+const CATEGORY_LABELS: [(&str, &str); 5] = [
     ("info", "ℹ️ Informações"),
     ("example", "🧪 Exemplos"),
     ("group", "👥 Grupo"),
+    ("media", "🖼️ Mídia"),
     ("admin", "🔐 Administração"),
 ];
 
-const CATALOG: [(&str, &str, &str); 9] = [
+const CATALOG: [(&str, &str, &str); 14] = [
     ("info", "ping", "Envia o ping do bot."),
     (
         "info",
@@ -30,16 +34,41 @@ const CATALOG: [(&str, &str, &str); 9] = [
     ),
     ("info", "help", "Exibe esta ajuda."),
     ("info", "menu", "Exibe o menu de comandos por categoria."),
-    ("group", "groupid", "Mostra o ID do grupo."),
-    (
-        "group",
-        "ban",
-        "Bane um membro do grupo (apenas administradores). Uso: {prefix}ban @pessoa",
-    ),
+    ("group", "group-id", "Mostra o ID do grupo."),
     (
         "group",
         "members",
         "Lista os membros do grupo e revela seus IDs.",
+    ),
+    (
+        "group",
+        "ban-member",
+        "Bane um membro do grupo (apenas administradores). Uso: {prefix}ban-member @pessoa",
+    ),
+    (
+        "group",
+        "add-member",
+        "Adiciona um número ao grupo (apenas administradores). Uso: {prefix}add-member <número>",
+    ),
+    (
+        "group",
+        "invite",
+        "Mostra o link de convite do grupo, ou o envia no privado (apenas administradores). Uso: {prefix}invite [número]",
+    ),
+    (
+        "group",
+        "leave",
+        "Faz o bot sair do grupo (apenas administradores).",
+    ),
+    (
+        "group",
+        "create-group",
+        "Cria um grupo, adiciona você como admin e o trava para admins (apenas dono). Uso: {prefix}create-group <nome>",
+    ),
+    (
+        "media",
+        "sticker",
+        "Cria uma figurinha a partir de uma imagem (legenda ou resposta). Uso: {prefix}sticker [crop: true|false|dented] [center: true|false]",
     ),
     (
         "example",
@@ -61,7 +90,12 @@ pub enum Command {
     Menu,
     Members,
     GroupId,
-    Ban,
+    BanMember,
+    AddMember(String),
+    Invite(Option<String>),
+    Leave,
+    CreateGroup(String),
+    Sticker(StickerOptions),
     Sum(f64, f64),
     Uptime,
 }
@@ -100,11 +134,29 @@ impl Command {
             "help" => Self::Help,
             "menu" => Self::Menu,
             "members" => Self::Members,
-            "groupid" => Self::GroupId,
-            "ban" => {
+            "group-id" => Self::GroupId,
+            "ban-member" => {
                 arguments.next();
-                Self::Ban
+                Self::BanMember
             }
+            "add-member" => Self::AddMember(phone_number(arguments.next())?),
+            "invite" => Self::Invite(
+                arguments
+                    .next()
+                    .map(|value| phone_number(Some(value)))
+                    .transpose()?,
+            ),
+            "leave" => Self::Leave,
+            "create-group" => {
+                let group_name = arguments.by_ref().collect::<Vec<_>>().join(" ");
+
+                if group_name.is_empty() {
+                    return Err(ParseError::MissingArgument("nome"));
+                }
+
+                Self::CreateGroup(group_name)
+            }
+            "sticker" => Self::Sticker(StickerOptions::parse(arguments.next(), arguments.next())?),
             "sum" => Self::Sum(
                 number(arguments.next(), "a")?,
                 number(arguments.next(), "b")?,
@@ -154,8 +206,13 @@ impl Command {
             Self::Help => "help",
             Self::Menu => "menu",
             Self::Members => "members",
-            Self::GroupId => "groupid",
-            Self::Ban => "ban",
+            Self::GroupId => "group-id",
+            Self::BanMember => "ban-member",
+            Self::AddMember(_) => "add-member",
+            Self::Invite(_) => "invite",
+            Self::Leave => "leave",
+            Self::CreateGroup(_) => "create-group",
+            Self::Sticker(_) => "sticker",
             Self::Sum(..) => "sum",
             Self::Uptime => "uptime",
         }
@@ -167,6 +224,23 @@ fn describe(prefix: char, name: &str, description: &str) -> String {
         "• *{prefix}{name}* - {}",
         description.replace("{prefix}", &prefix.to_string())
     )
+}
+
+fn phone_number(value: Option<&str>) -> Result<String, ParseError> {
+    let value = value.ok_or(ParseError::MissingArgument("número"))?;
+    let digits = value
+        .chars()
+        .filter(char::is_ascii_digit)
+        .collect::<String>();
+
+    if (8..=15).contains(&digits.len()) {
+        Ok(digits)
+    } else {
+        Err(ParseError::InvalidArgument {
+            name: "número",
+            value: value.to_owned(),
+        })
+    }
 }
 
 fn number(value: Option<&str>, name: &'static str) -> Result<f64, ParseError> {
@@ -225,7 +299,12 @@ async fn run(ctx: &Context, command: &Command) -> Result<(), Error> {
         Command::Menu => info::menu::run(ctx).await,
         Command::Members => group::members::run(ctx).await,
         Command::GroupId => group::group_id::run(ctx).await,
-        Command::Ban => group::ban::run(ctx).await,
+        Command::BanMember => group::ban_member::run(ctx).await,
+        Command::AddMember(number) => group::add_member::run(ctx, number).await,
+        Command::Invite(number) => group::invite::run(ctx, number.as_deref()).await,
+        Command::Leave => group::leave::run(ctx).await,
+        Command::CreateGroup(name) => group::create_group::run(ctx, name).await,
+        Command::Sticker(options) => media::sticker::run(ctx, *options).await,
         Command::Sum(a, b) => example::sum::run(ctx, *a, *b).await,
         Command::Uptime => admin::uptime::run(ctx).await,
     }
@@ -266,14 +345,84 @@ mod tests {
     }
 
     #[test]
-    fn ban_accepts_a_single_mention() {
-        assert_eq!(parse("!ban @5511999999999"), Some(Ok(Command::Ban)));
-        assert_eq!(parse("!ban @1 @2"), Some(Err(ParseError::TooManyArguments)));
+    fn ban_member_accepts_a_single_mention() {
+        assert_eq!(
+            parse("!ban-member @5511999999999"),
+            Some(Ok(Command::BanMember))
+        );
+        assert_eq!(
+            parse("!ban-member @1 @2"),
+            Some(Err(ParseError::TooManyArguments))
+        );
     }
 
     #[test]
-    fn parses_groupid() {
-        assert_eq!(parse("!groupid"), Some(Ok(Command::GroupId)));
+    fn parses_group_id() {
+        assert_eq!(parse("!group-id"), Some(Ok(Command::GroupId)));
+    }
+
+    #[test]
+    fn add_member_requires_a_valid_number() {
+        assert_eq!(
+            parse("!add-member +55-11-99999-9999"),
+            Some(Ok(Command::AddMember(String::from("5511999999999"))))
+        );
+        assert_eq!(
+            parse("!add-member"),
+            Some(Err(ParseError::MissingArgument("número")))
+        );
+        assert!(matches!(parse("!add-member 123"), Some(Err(_))));
+    }
+
+    #[test]
+    fn invite_number_is_optional() {
+        assert_eq!(parse("!invite"), Some(Ok(Command::Invite(None))));
+        assert_eq!(
+            parse("!invite 5511999999999"),
+            Some(Ok(Command::Invite(Some(String::from("5511999999999")))))
+        );
+    }
+
+    #[test]
+    fn create_group_joins_the_remaining_words() {
+        assert_eq!(
+            parse("!create-group Meu grupo legal"),
+            Some(Ok(Command::CreateGroup(String::from("Meu grupo legal"))))
+        );
+        assert_eq!(
+            parse("!create-group"),
+            Some(Err(ParseError::MissingArgument("nome")))
+        );
+    }
+
+    #[test]
+    fn parses_commands_without_arguments() {
+        assert_eq!(parse("!leave"), Some(Ok(Command::Leave)));
+        assert_eq!(parse("!leave now"), Some(Err(ParseError::TooManyArguments)));
+    }
+
+    #[test]
+    fn sticker_accepts_optional_crop_and_center() {
+        let sticker = |crop, center| {
+            Some(Ok(Command::Sticker(
+                StickerOptions::parse(crop, center).unwrap(),
+            )))
+        };
+
+        assert_eq!(parse("!sticker"), sticker(None, None));
+        assert_eq!(parse("!sticker dented"), sticker(Some("dented"), None));
+        assert_eq!(
+            parse("!sticker false false"),
+            sticker(Some("false"), Some("false"))
+        );
+        assert!(matches!(
+            parse("!sticker maybe"),
+            Some(Err(ParseError::InvalidArgument { name: "crop", .. }))
+        ));
+        assert_eq!(
+            parse("!sticker true true extra"),
+            Some(Err(ParseError::TooManyArguments))
+        );
     }
 
     #[test]

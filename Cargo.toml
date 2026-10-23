@@ -6,10 +6,12 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.104"
 dotenvy = "0.15.7"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 qrcode = { version = "0.14.1", default-features = false }
 thiserror = "2.0.21"
 tokio = { version = "1.54.0", features = ["macros", "rt-multi-thread", "signal"] }
 tracing = "0.1.44"
 tracing-appender = "0.2.5"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt", "ansi"] }
+webp = { version = "0.3.1", default-features = false }
 whatsapp-rust = { version = "0.7.0", default-features = false, features = ["sqlite-storage", "tokio-transport", "tokio-runtime", "ureq-client", "tokio-native", "signal"] }

@@ -62,9 +62,14 @@ O prefixo padrão é `!` (veja `src/helpers/config.rs`).
 | `!help`         | Lista os comandos.                       |
 | `!menu`         | Menu de comandos por categoria.          |
 | `!id [@pessoa]` | Mostra o seu ID ou o da pessoa mencionada. |
-| `!groupid`      | Mostra o ID do grupo.                    |
-| `!ban @pessoa`  | Bane um membro do grupo (apenas admins). |
 | `!members`      | Lista os membros do grupo e seus IDs.    |
+| `!group-id`     | Mostra o ID do grupo.                    |
+| `!ban-member @pessoa` | Bane um membro do grupo (apenas admins). |
+| `!add-member <número>` | Adiciona um número ao grupo (apenas admins). |
+| `!invite [número]` | Link de convite do grupo, ou envia no privado (apenas admins). |
+| `!leave`        | O bot sai do grupo (apenas admins).      |
+| `!create-group <nome>` | Cria um grupo, adiciona você como admin e o trava para admins (apenas dono). |
+| `!sticker [crop] [center]` | Cria uma figurinha. `crop`: `true` (padrão, preenche e corta), `false` (imagem inteira) ou `dented` (amassada); `center`: `true` (padrão) ou `false` (alinha no canto superior esquerdo). |
 | `!sum <a> <b>`  | Soma dois números (exemplo).             |
 | `!uptime`       | Tempo online do bot (apenas dono).       |
 
