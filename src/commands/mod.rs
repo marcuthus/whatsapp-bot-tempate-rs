@@ -25,7 +25,7 @@ const CATEGORY_LABELS: [(&str, &str); 5] = [
     ("admin", "🔐 Administração"),
 ];
 
-const CATALOG: [(&str, &str, &str); 14] = [
+const CATALOG: [(&str, &str, &str); 15] = [
     ("info", "ping", "Envia o ping do bot."),
     (
         "info",
@@ -62,6 +62,11 @@ const CATALOG: [(&str, &str, &str); 14] = [
     ),
     (
         "group",
+        "everyone",
+        "Menciona todos os membros do grupo (apenas administradores). Uso: {prefix}everyone [mensagem]",
+    ),
+    (
+        "group",
         "create-group",
         "Cria um grupo, adiciona você como admin e o trava para admins (apenas dono). Uso: {prefix}create-group <nome>",
     ),
@@ -94,6 +99,7 @@ pub enum Command {
     AddMember(Option<String>),
     Invite(Option<String>),
     Leave,
+    Everyone(String),
     CreateGroup(String),
     Sticker(StickerOptions),
     Sum(f64, f64),
@@ -152,6 +158,7 @@ impl Command {
                     .transpose()?,
             ),
             "leave" => Self::Leave,
+            "everyone" => Self::Everyone(arguments.by_ref().collect::<Vec<_>>().join(" ")),
             "create-group" => {
                 let group_name = arguments.by_ref().collect::<Vec<_>>().join(" ");
 
@@ -216,6 +223,7 @@ impl Command {
             Self::AddMember(_) => "add-member",
             Self::Invite(_) => "invite",
             Self::Leave => "leave",
+            Self::Everyone(_) => "everyone",
             Self::CreateGroup(_) => "create-group",
             Self::Sticker(_) => "sticker",
             Self::Sum(..) => "sum",
@@ -308,6 +316,7 @@ async fn run(ctx: &Context, command: &Command) -> Result<(), Error> {
         Command::AddMember(number) => group::add_member::run(ctx, number.as_deref()).await,
         Command::Invite(number) => group::invite::run(ctx, number.as_deref()).await,
         Command::Leave => group::leave::run(ctx).await,
+        Command::Everyone(announcement) => group::everyone::run(ctx, announcement).await,
         Command::CreateGroup(name) => group::create_group::run(ctx, name).await,
         Command::Sticker(options) => media::sticker::run(ctx, *options).await,
         Command::Sum(a, b) => example::sum::run(ctx, *a, *b).await,
@@ -393,6 +402,18 @@ mod tests {
         assert_eq!(
             parse("!create-group"),
             Some(Err(ParseError::MissingArgument("nome")))
+        );
+    }
+
+    #[test]
+    fn everyone_takes_an_optional_announcement() {
+        assert_eq!(
+            parse("!everyone"),
+            Some(Ok(Command::Everyone(String::new())))
+        );
+        assert_eq!(
+            parse("!everyone Reunião às 20h"),
+            Some(Ok(Command::Everyone(String::from("Reunião às 20h"))))
         );
     }
 

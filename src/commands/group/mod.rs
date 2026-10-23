@@ -1,6 +1,7 @@
 pub mod add_member;
 pub mod ban_member;
 pub mod create_group;
+pub mod everyone;
 pub mod group_id;
 pub mod invite;
 pub mod leave;

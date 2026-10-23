@@ -68,6 +68,7 @@ O prefixo padrão é `!` (veja `src/helpers/config.rs`).
 | `!add-member [número]` | Adiciona um número ao grupo, ou todos os contatos da mensagem respondida; informa no final quais falharam (apenas admins). |
 | `!invite [número]` | Link de convite do grupo, ou envia no privado (apenas admins). |
 | `!leave`        | O bot sai do grupo (apenas admins).      |
+| `!everyone [mensagem]` | Menciona todos os membros do grupo (apenas admins). |
 | `!create-group <nome>` | Cria um grupo, adiciona você como admin e o trava para admins (apenas dono). |
 | `!sticker [crop] [center]` | Cria uma figurinha. `crop`: `true` (padrão, preenche e corta), `false` (imagem inteira) ou `dented` (amassada); `center`: `true` (padrão) ou `false` (alinha no canto superior esquerdo). |
 | `!sum <a> <b>`  | Soma dois números (exemplo).             |
