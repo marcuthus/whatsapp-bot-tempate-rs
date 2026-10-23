@@ -34,7 +34,11 @@ const CATALOG: [(&str, &str, &str); 18] = [
     ),
     ("info", "help", "Exibe esta ajuda."),
     ("info", "menu", "Exibe o menu de comandos por categoria."),
-    ("group", "group-id", "Mostra o ID do grupo."),
+    (
+        "group",
+        "group-id",
+        "Mostra o ID do grupo. Uso: {prefix}group-id [private-reply: true|false, padrão true]",
+    ),
     (
         "group",
         "members",
@@ -110,7 +114,7 @@ pub enum Command {
     Menu,
     Members(bool),
     BanAllMembers(bool),
-    GroupId,
+    GroupId(bool),
     BanMember,
     AddMember(Option<String>),
     Invite(Option<String>),
@@ -156,7 +160,7 @@ impl Command {
             "menu" => Self::Menu,
             "members" => Self::Members(private_reply(arguments.by_ref(), false)?),
             "ban-all-members" => Self::BanAllMembers(confirmation(arguments.next())?),
-            "group-id" => Self::GroupId,
+            "group-id" => Self::GroupId(private_reply(arguments.by_ref(), false)?),
             "ban-member" => {
                 arguments.next();
                 Self::BanMember
@@ -240,7 +244,7 @@ impl Command {
             Self::Menu => "menu",
             Self::Members(_) => "members",
             Self::BanAllMembers(_) => "ban-all-members",
-            Self::GroupId => "group-id",
+            Self::GroupId(_) => "group-id",
             Self::BanMember => "ban-member",
             Self::AddMember(_) => "add-member",
             Self::Invite(_) => "invite",
@@ -380,7 +384,7 @@ async fn run(ctx: &Context, command: &Command) -> Result<(), Error> {
         Command::Menu => info::menu::run(ctx).await,
         Command::Members(private_reply) => group::members::run(ctx, *private_reply).await,
         Command::BanAllMembers(confirmed) => group::ban_all_members::run(ctx, *confirmed).await,
-        Command::GroupId => group::group_id::run(ctx).await,
+        Command::GroupId(private_reply) => group::group_id::run(ctx, *private_reply).await,
         Command::BanMember => group::ban_member::run(ctx).await,
         Command::AddMember(number) => group::add_member::run(ctx, number.as_deref()).await,
         Command::Invite(number) => group::invite::run(ctx, number.as_deref()).await,
@@ -485,7 +489,13 @@ mod tests {
 
     #[test]
     fn parses_group_id() {
-        assert_eq!(parse("!group-id"), Some(Ok(Command::GroupId)));
+        assert_eq!(parse("!group-id"), Some(Ok(Command::GroupId(true))));
+        assert_eq!(parse("!group-id false"), Some(Ok(Command::GroupId(false))));
+        assert_eq!(
+            parse("!group-id private-reply=false"),
+            Some(Ok(Command::GroupId(false)))
+        );
+        assert!(matches!(parse("!group-id @5511"), Some(Err(_))));
     }
 
     #[test]
