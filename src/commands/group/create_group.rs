@@ -1,13 +1,8 @@
 use whatsapp_rust::features::{GroupCreateOptions, GroupParticipantOptions, MemberAddMode};
 
-use crate::{
-    data::{Context, Error},
-    utils::checks::require_bot_owner,
-};
+use crate::data::{Context, Error};
 
 pub async fn run(ctx: &Context, name: &str) -> Result<(), Error> {
-    require_bot_owner(ctx)?;
-
     let owner = ctx
         .author_jids()
         .into_iter()
