@@ -5,11 +5,11 @@ use image::{
 use whatsapp_rust::{UploadOptions, download::MediaType, prelude::*};
 
 use crate::{
-    commands::ParseError,
+    commands::{ParseError, media::video_sticker},
     data::{Context, Error},
 };
 
-const STICKER_SIZE: u32 = 512;
+pub const STICKER_SIZE: u32 = 512;
 const WEBP_QUALITY: f32 = 75.0;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -61,16 +61,47 @@ fn invalid(name: &'static str, value: Option<&str>) -> ParseError {
     }
 }
 
+enum Source {
+    Image(wa::message::ImageMessage),
+    Video(wa::message::VideoMessage),
+}
+
 pub async fn run(ctx: &Context, options: StickerOptions) -> Result<(), Error> {
-    let Some(source) = find_image(ctx) else {
-        ctx.reply("Envie uma imagem com a legenda !sticker ou responda uma imagem com !sticker.")
-            .await?;
+    let Some(source) = find_source(ctx) else {
+        ctx.reply(
+            "Envie uma imagem, GIF ou vídeo com a legenda !sticker ou responda um deles com !sticker.",
+        )
+        .await?;
         return Ok(());
     };
 
     let client = &ctx.message.client;
-    let original = client.download(&source).await?;
-    let webp = tokio::task::spawn_blocking(move || to_sticker(&original, options)).await??;
+
+    let (original, is_video) = match &source {
+        Source::Image(image) => (client.download(image).await?, false),
+        Source::Video(video) => (client.download(video).await?, true),
+    };
+
+    let converted = tokio::task::spawn_blocking(move || {
+        if is_video {
+            video_sticker::from_video(&original, options)
+        } else {
+            to_sticker(&original, options)
+        }
+    })
+    .await?;
+
+    let webp = match converted {
+        Ok(webp) => webp,
+        Err(error) if is_video => {
+            ctx.reply(format!(
+                "Não foi possível criar o sticker animado. ({error})"
+            ))
+            .await?;
+            return Ok(());
+        }
+        Err(error) => return Err(error),
+    };
 
     let upload = client
         .upload(webp, MediaType::Sticker, UploadOptions::default())
@@ -88,7 +119,7 @@ pub async fn run(ctx: &Context, options: StickerOptions) -> Result<(), Error> {
             mimetype: Some("image/webp".to_owned()),
             width: Some(STICKER_SIZE),
             height: Some(STICKER_SIZE),
-            is_animated: Some(false),
+            is_animated: Some(is_video),
             ..Default::default()
         }),
         ..Default::default()
@@ -99,19 +130,28 @@ pub async fn run(ctx: &Context, options: StickerOptions) -> Result<(), Error> {
     Ok(())
 }
 
-fn find_image(ctx: &Context) -> Option<wa::message::ImageMessage> {
-    let base = ctx.message.message.get_base_message();
+fn source_of(message: &wa::Message) -> Option<Source> {
+    let base = message.get_base_message();
 
-    if let Some(image) = base.image_message.as_option() {
-        return Some(image.clone());
-    }
-
-    base.extended_text_message
+    base.image_message
         .as_option()
-        .and_then(|text| text.context_info.as_option())
-        .and_then(|context_info| context_info.quoted_message.as_option())
-        .and_then(|quoted| quoted.get_base_message().image_message.as_option())
         .cloned()
+        .map(Source::Image)
+        .or_else(|| base.video_message.as_option().cloned().map(Source::Video))
+}
+
+fn find_source(ctx: &Context) -> Option<Source> {
+    let message = &ctx.message.message;
+
+    source_of(message).or_else(|| {
+        message
+            .get_base_message()
+            .extended_text_message
+            .as_option()
+            .and_then(|text| text.context_info.as_option())
+            .and_then(|context_info| context_info.quoted_message.as_option())
+            .and_then(source_of)
+    })
 }
 
 fn to_sticker(bytes: &[u8], options: StickerOptions) -> Result<Vec<u8>, Error> {

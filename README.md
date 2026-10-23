@@ -71,7 +71,7 @@ O prefixo padrão é `!` (veja `src/helpers/config.rs`).
 | `!ban-all-members confirm` | Bane todos os membros que não são admins (apenas admins; exige `confirm`). |
 | `!everyone [mensagem]` | Menciona todos os membros do grupo (apenas admins). |
 | `!create-group <nome>` | Cria um grupo, adiciona você como admin e o trava para admins (apenas dono). |
-| `!sticker [crop] [center]` | Cria uma figurinha. `crop`: `true` (padrão, preenche e corta), `false` (imagem inteira) ou `dented` (amassada); `center`: `true` (padrão) ou `false` (alinha no canto superior esquerdo). |
+| `!sticker [crop] [center]` | Cria uma figurinha a partir de uma imagem, GIF ou vídeo (legenda ou resposta); vídeos e GIFs viram sticker animado (até 10 s, requer o `ffmpeg`). `crop`: `true` (padrão, preenche e corta), `false` (inteira) ou `dented` (amassada); `center`: `true` (padrão) ou `false`. |
 | `!sticker2media` | Transforma um sticker em imagem ou, se for animado, em vídeo (responda o sticker com o comando). Requer o `ffmpeg` para stickers animados. |
 | `!profile-photo [@pessoa]` | Envia a sua foto de perfil ou a da pessoa mencionada. |
 | `!sum <a> <b>`  | Soma dois números (exemplo).             |

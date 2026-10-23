@@ -1,15 +1,8 @@
-use std::{
-    fs,
-    io::{self, Cursor},
-    path::{Path, PathBuf},
-    process::Command,
-    sync::atomic::{AtomicU32, Ordering},
-};
+use std::{fs, io::Cursor};
 
 use image::{
     AnimationDecoder, ImageEncoder, RgbaImage, codecs::png::PngEncoder, codecs::webp::WebPDecoder,
 };
-use thiserror::Error;
 use whatsapp_rust::{
     UploadOptions,
     download::MediaType,
@@ -17,23 +10,16 @@ use whatsapp_rust::{
     prelude::*,
 };
 
-use crate::data::{Context, Error};
+use crate::{
+    data::{Context, Error},
+    utils::ffmpeg::{self, TempDirectory},
+};
 
 const WHITE: [u8; 3] = [255, 255, 255];
 const MIN_FRAME_DELAY_MS: u32 = 20;
 const DEFAULT_FRAME_DELAY_MS: u32 = 100;
 const MAX_FRAMES: usize = 300;
 const FRAMES_PER_SECOND: u32 = 25;
-
-static NEXT_DIRECTORY: AtomicU32 = AtomicU32::new(0);
-
-#[derive(Debug, Error)]
-enum ConversionError {
-    #[error("o ffmpeg não está instalado no servidor")]
-    FfmpegMissing,
-    #[error("o ffmpeg falhou: {0}")]
-    FfmpegFailed(String),
-}
 
 enum Media {
     Image(Vec<u8>),
@@ -220,25 +206,11 @@ fn concat_list(delays_ms: &[u32]) -> String {
 }
 
 fn frames_to_mp4(frames: &[Frame]) -> Result<Vec<u8>, Error> {
-    let directory = std::env::temp_dir().join(format!(
-        "sticker-{}-{}",
-        std::process::id(),
-        NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed)
-    ));
+    let directory = TempDirectory::create()?;
 
-    fs::create_dir_all(&directory)?;
-
-    let result = encode_with_ffmpeg(&directory, frames);
-
-    let _ = fs::remove_dir_all(&directory);
-
-    result
-}
-
-fn encode_with_ffmpeg(directory: &Path, frames: &[Frame]) -> Result<Vec<u8>, Error> {
     for (index, frame) in frames.iter().enumerate() {
         fs::write(
-            directory.join(format!("frame-{index}.png")),
+            directory.path().join(format!("frame-{index}.png")),
             encode_png(&frame.image)?,
         )?;
     }
@@ -247,33 +219,36 @@ fn encode_with_ffmpeg(directory: &Path, frames: &[Frame]) -> Result<Vec<u8>, Err
         .iter()
         .map(|frame| frame.delay_ms)
         .collect::<Vec<_>>();
-    fs::write(directory.join("list.txt"), concat_list(&delays))?;
+    fs::write(directory.path().join("list.txt"), concat_list(&delays))?;
 
-    let ffmpeg = std::env::var("FFMPEG_PATH").unwrap_or_else(|_| "ffmpeg".to_owned());
     let filter =
         format!("fps={FRAMES_PER_SECOND},scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p");
 
-    let output = Command::new(PathBuf::from(ffmpeg))
-        .current_dir(directory)
-        .args(["-y", "-hide_banner", "-loglevel", "error"])
-        .args(["-f", "concat", "-safe", "0", "-i", "list.txt"])
-        .args(["-vf", &filter])
-        .args(["-c:v", "libx264", "-preset", "veryfast", "-crf", "23"])
-        .args(["-an", "-movflags", "+faststart", "out.mp4"])
-        .output()
-        .map_err(|error| match error.kind() {
-            io::ErrorKind::NotFound => ConversionError::FfmpegMissing,
-            _ => ConversionError::FfmpegFailed(error.to_string()),
-        })?;
+    ffmpeg::run(
+        directory.path(),
+        &[
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            "list.txt",
+            "-vf",
+            &filter,
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "23",
+            "-an",
+            "-movflags",
+            "+faststart",
+            "out.mp4",
+        ],
+    )?;
 
-    if !output.status.success() {
-        return Err(ConversionError::FfmpegFailed(
-            String::from_utf8_lossy(&output.stderr).trim().to_owned(),
-        )
-        .into());
-    }
-
-    Ok(fs::read(directory.join("out.mp4"))?)
+    Ok(fs::read(directory.path().join("out.mp4"))?)
 }
 
 #[cfg(test)]
@@ -323,13 +298,6 @@ mod tests {
         encoder.encode().to_vec()
     }
 
-    fn ffmpeg_is_available() -> bool {
-        Command::new(std::env::var("FFMPEG_PATH").unwrap_or_else(|_| "ffmpeg".to_owned()))
-            .arg("-version")
-            .output()
-            .is_ok()
-    }
-
     #[test]
     fn converts_a_static_sticker_to_an_opaque_png_with_a_white_background() {
         let Media::Image(png) = convert(&static_sticker()).unwrap() else {
@@ -366,7 +334,7 @@ mod tests {
 
     #[test]
     fn converts_an_animated_sticker_to_an_mp4_when_ffmpeg_is_installed() {
-        if !ffmpeg_is_available() {
+        if !ffmpeg::is_available() {
             return;
         }
 

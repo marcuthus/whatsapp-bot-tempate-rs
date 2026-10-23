@@ -103,4 +103,5 @@ Use `whatsapp_rust::prelude::*` for the common client types (`Bot`, `MessageCont
 
 - `!sticker2media` turns a replied sticker into a PNG (transparency becomes white) or, when the WebP is animated, into an H.264 MP4 sent as a GIF-style video. Frames are decoded with the `image` crate and encoded by the `ffmpeg` binary (`src/commands/media/sticker2media.rs`).
 - `ffmpeg` must be on the `PATH` (the Dockerfile installs it); set `FFMPEG_PATH` to use another binary. Without it, animated stickers get a friendly error and static ones still work; the MP4 test is skipped when `ffmpeg` is missing.
+- `!sticker` also accepts videos and GIFs (WhatsApp sends GIFs as videos): `ffmpeg` encodes an animated 512x512 WebP (`libwebp`, at most 10 s) and retries with lower fps/quality until it fits the 500 KB limit (`src/commands/media/video_sticker.rs`); `crop`/`center` are applied as ffmpeg filters. Shared helpers (`TempDirectory`, `run`) live in `src/utils/ffmpeg.rs`.
 - `!profile-photo [@person]` fetches the picture with `client.contacts().get_profile_picture` and downloads it through the client's HTTP client; it explains when the picture is missing or private.
