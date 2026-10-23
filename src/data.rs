@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Instant};
 
 use whatsapp_rust::prelude::*;
 
-use crate::helpers::config::Config;
+use crate::{helpers::config::Config, utils::vcard};
 
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
 
@@ -43,6 +43,43 @@ impl Context {
             .chain(source.sender_alt.as_ref())
             .cloned()
             .collect()
+    }
+
+    pub fn quoted_contact_numbers(&self) -> Vec<String> {
+        let Some(quoted) = self
+            .message
+            .message
+            .get_base_message()
+            .extended_text_message
+            .as_option()
+            .and_then(|text| text.context_info.as_option())
+            .and_then(|context_info| context_info.quoted_message.as_option())
+            .map(|quoted| quoted.get_base_message())
+        else {
+            return Vec::new();
+        };
+
+        let single = quoted.contact_message.as_option().into_iter();
+        let array = quoted
+            .contacts_array_message
+            .as_option()
+            .into_iter()
+            .flat_map(|contacts| contacts.contacts.iter());
+
+        let mut numbers: Vec<String> = Vec::new();
+
+        for card in single
+            .chain(array)
+            .filter_map(|contact| contact.vcard.as_deref())
+        {
+            for number in vcard::phone_numbers(card) {
+                if !numbers.contains(&number) {
+                    numbers.push(number);
+                }
+            }
+        }
+
+        numbers
     }
 
     pub fn mentioned_jids(&self) -> Vec<Jid> {

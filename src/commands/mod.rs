@@ -48,7 +48,7 @@ const CATALOG: [(&str, &str, &str); 14] = [
     (
         "group",
         "add-member",
-        "Adiciona um número ao grupo (apenas administradores). Uso: {prefix}add-member <número>",
+        "Adiciona ao grupo um número ou os contatos da mensagem respondida (apenas administradores). Uso: {prefix}add-member <número> ou responda um contato com {prefix}add-member",
     ),
     (
         "group",
@@ -91,7 +91,7 @@ pub enum Command {
     Members,
     GroupId,
     BanMember,
-    AddMember(String),
+    AddMember(Option<String>),
     Invite(Option<String>),
     Leave,
     CreateGroup(String),
@@ -139,7 +139,12 @@ impl Command {
                 arguments.next();
                 Self::BanMember
             }
-            "add-member" => Self::AddMember(phone_number(arguments.next())?),
+            "add-member" => Self::AddMember(
+                arguments
+                    .next()
+                    .map(|value| phone_number(Some(value)))
+                    .transpose()?,
+            ),
             "invite" => Self::Invite(
                 arguments
                     .next()
@@ -300,7 +305,7 @@ async fn run(ctx: &Context, command: &Command) -> Result<(), Error> {
         Command::Members => group::members::run(ctx).await,
         Command::GroupId => group::group_id::run(ctx).await,
         Command::BanMember => group::ban_member::run(ctx).await,
-        Command::AddMember(number) => group::add_member::run(ctx, number).await,
+        Command::AddMember(number) => group::add_member::run(ctx, number.as_deref()).await,
         Command::Invite(number) => group::invite::run(ctx, number.as_deref()).await,
         Command::Leave => group::leave::run(ctx).await,
         Command::CreateGroup(name) => group::create_group::run(ctx, name).await,
@@ -362,18 +367,14 @@ mod tests {
     }
 
     #[test]
-    fn add_member_requires_a_valid_number() {
+    fn add_member_number_is_optional_but_must_be_valid() {
         assert_eq!(
             parse("!add-member +55-11-99999-9999"),
-            Some(Ok(Command::AddMember(String::from("5511999999999"))))
+            Some(Ok(Command::AddMember(Some(String::from("5511999999999")))))
         );
-        assert_eq!(
-            parse("!add-member"),
-            Some(Err(ParseError::MissingArgument("número")))
-        );
+        assert_eq!(parse("!add-member"), Some(Ok(Command::AddMember(None))));
         assert!(matches!(parse("!add-member 123"), Some(Err(_))));
     }
-
     #[test]
     fn invite_number_is_optional() {
         assert_eq!(parse("!invite"), Some(Ok(Command::Invite(None))));
