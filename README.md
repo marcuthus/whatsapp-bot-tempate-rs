@@ -59,8 +59,11 @@ O prefixo padrão é `!` (veja `src/helpers/config.rs`).
 | Comando         | Descrição                                |
 | --------------- | ---------------------------------------- |
 | `!ping`         | Mostra o ping do bot.                    |
-| `!id`           | Mostra o seu ID de usuário.              |
 | `!help`         | Lista os comandos.                       |
+| `!menu`         | Menu de comandos por categoria.          |
+| `!id [@pessoa]` | Mostra o seu ID ou o da pessoa mencionada. |
+| `!groupid`      | Mostra o ID do grupo.                    |
+| `!members`      | Lista os membros do grupo e seus IDs.    |
 | `!sum <a> <b>`  | Soma dois números (exemplo).             |
 | `!uptime`       | Tempo online do bot (apenas dono).       |
 

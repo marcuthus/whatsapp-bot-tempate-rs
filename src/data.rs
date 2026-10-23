@@ -34,6 +34,32 @@ impl Context {
             .collect()
     }
 
+    pub fn author_jids(&self) -> Vec<Jid> {
+        let source = &self.message.info.source;
+
+        std::iter::once(&source.sender)
+            .chain(source.sender_alt.as_ref())
+            .cloned()
+            .collect()
+    }
+
+    pub fn mentioned_jids(&self) -> Vec<Jid> {
+        self.message
+            .message
+            .get_base_message()
+            .extended_text_message
+            .as_option()
+            .and_then(|text| text.context_info.as_option())
+            .map(|context_info| {
+                context_info
+                    .mentioned_jid
+                    .iter()
+                    .filter_map(|jid| jid.parse().ok())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     pub fn author_name(&self) -> String {
         match self.message.info.push_name.trim() {
             "" => String::from("usuário"),

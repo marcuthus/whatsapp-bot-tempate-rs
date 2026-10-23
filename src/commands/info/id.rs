@@ -1,11 +1,18 @@
 use crate::data::{Context, Error};
 
 pub async fn run(ctx: &Context) -> Result<(), Error> {
-    let Some(id) = ctx.author_ids().into_iter().next() else {
-        return Ok(());
+    let (heading, ids) = match ctx.mentioned_jids().into_iter().next() {
+        Some(jid) => ("O ID da pessoa mencionada é", vec![jid]),
+        None => ("O seu ID de usuário é", ctx.author_jids()),
     };
 
-    ctx.reply(format!("O seu ID de usuário é `{id}`")).await?;
+    let lines = ids
+        .iter()
+        .map(|jid| format!("`{jid}`"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    ctx.reply(format!("{heading}:\n{lines}")).await?;
 
     Ok(())
 }

@@ -1,5 +1,6 @@
 mod admin;
 mod example;
+mod group;
 mod info;
 
 use std::sync::Arc;
@@ -13,12 +14,35 @@ use crate::{
     error,
 };
 
-const DESCRIPTIONS: [(&str, &str); 5] = [
-    ("ping", "Envia o ping do bot."),
-    ("id", "Mostra o seu ID de usuário."),
-    ("help", "Exibe esta ajuda."),
-    ("sum", "Soma dois números. Uso: {prefix}sum <a> <b>"),
+const CATEGORY_LABELS: [(&str, &str); 4] = [
+    ("info", "ℹ️ Informações"),
+    ("example", "🧪 Exemplos"),
+    ("group", "👥 Grupo"),
+    ("admin", "🔐 Administração"),
+];
+
+const CATALOG: [(&str, &str, &str); 8] = [
+    ("info", "ping", "Envia o ping do bot."),
     (
+        "info",
+        "id",
+        "Mostra o seu ID ou o de quem for mencionado. Uso: {prefix}id [@pessoa]",
+    ),
+    ("info", "help", "Exibe esta ajuda."),
+    ("info", "menu", "Exibe o menu de comandos por categoria."),
+    ("group", "groupid", "Mostra o ID do grupo."),
+    (
+        "group",
+        "members",
+        "Lista os membros do grupo e revela seus IDs.",
+    ),
+    (
+        "example",
+        "sum",
+        "Soma dois números. Uso: {prefix}sum <a> <b>",
+    ),
+    (
+        "admin",
         "uptime",
         "Mostra há quanto tempo o bot está online (apenas dono).",
     ),
@@ -29,6 +53,9 @@ pub enum Command {
     Ping,
     Id,
     Help,
+    Menu,
+    Members,
+    GroupId,
     Sum(f64, f64),
     Uptime,
 }
@@ -60,8 +87,14 @@ impl Command {
     ) -> Result<Self, ParseError> {
         let command = match name {
             "ping" => Self::Ping,
-            "id" => Self::Id,
+            "id" => {
+                arguments.next();
+                Self::Id
+            }
             "help" => Self::Help,
+            "menu" => Self::Menu,
+            "members" => Self::Members,
+            "groupid" => Self::GroupId,
             "sum" => Self::Sum(
                 number(arguments.next(), "a")?,
                 number(arguments.next(), "b")?,
@@ -77,16 +110,30 @@ impl Command {
     }
 
     pub fn descriptions(prefix: char) -> String {
-        let lines = DESCRIPTIONS.iter().map(|(name, description)| {
-            format!(
-                "*{prefix}{name}* - {}",
-                description.replace("{prefix}", &prefix.to_string())
-            )
-        });
+        let lines = CATALOG
+            .iter()
+            .map(|(_, name, description)| describe(prefix, name, description));
 
         format!(
             "Comandos disponíveis:\n\n{}",
             lines.collect::<Vec<_>>().join("\n")
+        )
+    }
+
+    pub fn menu(prefix: char, author_name: &str) -> String {
+        let sections = CATEGORY_LABELS.iter().map(|(category, label)| {
+            let lines = CATALOG
+                .iter()
+                .filter(|(command_category, _, _)| command_category == category)
+                .map(|(_, name, description)| describe(prefix, name, description))
+                .collect::<Vec<_>>();
+
+            format!("*{label}*\n{}", lines.join("\n"))
+        });
+
+        format!(
+            "*🤖 WhatsApp Bot*\n\n*📋 Menu*\n\nOlá {author_name}, estes são os meus comandos:\n\n{}\n\n_*👨‍💻 By Marcuth*_",
+            sections.collect::<Vec<_>>().join("\n\n")
         )
     }
 
@@ -95,10 +142,20 @@ impl Command {
             Self::Ping => "ping",
             Self::Id => "id",
             Self::Help => "help",
+            Self::Menu => "menu",
+            Self::Members => "members",
+            Self::GroupId => "groupid",
             Self::Sum(..) => "sum",
             Self::Uptime => "uptime",
         }
     }
+}
+
+fn describe(prefix: char, name: &str, description: &str) -> String {
+    format!(
+        "• *{prefix}{name}* - {}",
+        description.replace("{prefix}", &prefix.to_string())
+    )
 }
 
 fn number(value: Option<&str>, name: &'static str) -> Result<f64, ParseError> {
@@ -154,6 +211,9 @@ async fn run(ctx: &Context, command: &Command) -> Result<(), Error> {
         Command::Ping => info::ping::run(ctx).await,
         Command::Id => info::id::run(ctx).await,
         Command::Help => info::help::run(ctx).await,
+        Command::Menu => info::menu::run(ctx).await,
+        Command::Members => group::members::run(ctx).await,
+        Command::GroupId => group::group_id::run(ctx).await,
         Command::Sum(a, b) => example::sum::run(ctx, *a, *b).await,
         Command::Uptime => admin::uptime::run(ctx).await,
     }
@@ -187,6 +247,18 @@ mod tests {
     }
 
     #[test]
+    fn id_accepts_an_optional_mention() {
+        assert_eq!(parse("!id"), Some(Ok(Command::Id)));
+        assert_eq!(parse("!id @5511999999999"), Some(Ok(Command::Id)));
+        assert_eq!(parse("!id @1 @2"), Some(Err(ParseError::TooManyArguments)));
+    }
+
+    #[test]
+    fn parses_groupid() {
+        assert_eq!(parse("!groupid"), Some(Ok(Command::GroupId)));
+    }
+
+    #[test]
     fn is_case_insensitive() {
         assert_eq!(parse("!PING"), Some(Ok(Command::Ping)));
     }
@@ -204,6 +276,29 @@ mod tests {
         let descriptions = Command::descriptions('!');
 
         assert!(descriptions.contains("*!ping*"));
+        assert!(descriptions.contains("*!menu*"));
         assert!(descriptions.contains("Uso: !sum <a> <b>"));
+    }
+
+    #[test]
+    fn menu_groups_commands_by_category() {
+        let menu = Command::menu('!', "Ana");
+
+        assert!(menu.contains("Olá Ana"));
+        assert!(menu.find("Informações").unwrap() < menu.find("*!ping*").unwrap());
+        assert!(menu.find("*!ping*").unwrap() < menu.find("Exemplos").unwrap());
+        assert!(menu.find("Exemplos").unwrap() < menu.find("*!sum*").unwrap());
+        assert!(menu.find("Administração").unwrap() < menu.find("*!uptime*").unwrap());
+    }
+
+    #[test]
+    fn every_catalog_command_has_a_known_category() {
+        for (category, name, _) in CATALOG {
+            assert!(
+                CATEGORY_LABELS.iter().any(|(known, _)| *known == category),
+                "{name}"
+            );
+            assert!(Command::parse(&format!("!{name}"), '!').is_some());
+        }
     }
 }
