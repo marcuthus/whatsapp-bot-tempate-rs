@@ -84,3 +84,10 @@ Use `whatsapp_rust::prelude::*` for the common client types (`Bot`, `MessageCont
 - Use `tracing` macros with a scope as target: `info!(target: "client", "...")`, `error!`, `warn!`, `debug!`.
 - Logs go to console and to `logs/combined.log` / `logs/error.log` (see `src/helpers/logger.rs`). `whatsapp_rust` and `wacore` are limited to `warn` by default.
 - Keep the `WorkerGuard`s returned by `logger::init()` alive in `main`.
+
+## Docker
+
+- `Dockerfile` is multi-stage (`cargo build --release` with a cached dependency layer, runtime on `debian:bookworm-slim`) and runs as an unprivileged user.
+- `docker-compose.yml` loads `.env` through `env_file` and keeps `logs/` and `auth/` (the WhatsApp session) in named volumes.
+- `.dockerignore` keeps `.env`, `logs/`, `auth/`, `.git` and build output out of the image. Never copy secrets into the image.
+- Build and run: `docker compose up --build`.

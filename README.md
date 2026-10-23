@@ -63,6 +63,7 @@ O prefixo padrão é `!` (veja `src/helpers/config.rs`).
 | `!menu`         | Menu de comandos por categoria.          |
 | `!id [@pessoa]` | Mostra o seu ID ou o da pessoa mencionada. |
 | `!groupid`      | Mostra o ID do grupo.                    |
+| `!ban @pessoa`  | Bane um membro do grupo (apenas admins). |
 | `!members`      | Lista os membros do grupo e seus IDs.    |
 | `!sum <a> <b>`  | Soma dois números (exemplo).             |
 | `!uptime`       | Tempo online do bot (apenas dono).       |
@@ -113,6 +114,20 @@ Crie `src/events/<evento>.rs` com uma `pub async fn run(...)` e registre-a no `B
 ## ⚠️ Aviso
 
 O WhatsApp não oferece uma API oficial para este tipo de cliente. O uso para spam ou automação abusiva pode resultar em banimento do número. Use com responsabilidade.
+
+## 🐳 Docker
+
+O projeto inclui um `Dockerfile` (multi-stage, executa como usuário sem privilégios) e um `docker-compose.yml`. As variáveis são lidas do arquivo `.env` (copie o `.env.example`); o `.env` nunca entra na imagem.
+
+Na primeira execução é preciso vincular o WhatsApp, então suba o container **anexado** para ver o QR code (ou o código de pareamento) nos logs. Depois de pareado, a sessão fica no volume `auth` e você pode rodar em segundo plano:
+
+```bash
+docker compose up --build
+# depois de vincular, pare com Ctrl+C e rode em segundo plano:
+docker compose up -d
+```
+
+Os volumes `logs` (logs do bot) e `auth` (sessão do WhatsApp) são persistentes. Para vincular outro número: `docker compose down -v`.
 
 ## ⚖️ Licença
 

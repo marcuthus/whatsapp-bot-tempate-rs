@@ -1,0 +1,15 @@
+services:
+    whatsapp-bot-rs:
+        build: .
+        image: whatsapp-bot-rs
+        init: true
+        restart: unless-stopped
+        stop_grace_period: 30s
+        env_file: .env
+        volumes:
+            - logs:/app/logs
+            - auth:/app/auth
+
+volumes:
+    logs:
+    auth:

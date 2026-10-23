@@ -1,0 +1,10 @@
+.git
+.github
+.vscode
+.env
+logs
+auth
+target
+Dockerfile
+docker-compose.yml
+*.md
