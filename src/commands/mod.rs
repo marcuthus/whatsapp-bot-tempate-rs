@@ -25,12 +25,12 @@ const CATEGORY_LABELS: [(&str, &str); 5] = [
     ("admin", "🔐 Administração"),
 ];
 
-const CATALOG: [(&str, &str, &str); 15] = [
+const CATALOG: [(&str, &str, &str); 16] = [
     ("info", "ping", "Envia o ping do bot."),
     (
         "info",
         "id",
-        "Mostra o seu ID ou o de quem for mencionado. Uso: {prefix}id [@pessoa]",
+        "Mostra o seu ID ou o de quem for mencionado. Uso: {prefix}id [@pessoa] [private-reply: true|false, padrão true]",
     ),
     ("info", "help", "Exibe esta ajuda."),
     ("info", "menu", "Exibe o menu de comandos por categoria."),
@@ -38,7 +38,12 @@ const CATALOG: [(&str, &str, &str); 15] = [
     (
         "group",
         "members",
-        "Lista os membros do grupo e revela seus IDs.",
+        "Lista os membros do grupo e revela seus IDs. Uso: {prefix}members [private-reply: true|false, padrão true]",
+    ),
+    (
+        "group",
+        "ban-all-members",
+        "Bane todos os membros que não são administradores (apenas administradores). Uso: {prefix}ban-all-members confirm",
     ),
     (
         "group",
@@ -90,10 +95,11 @@ const CATALOG: [(&str, &str, &str); 15] = [
 #[derive(Debug, Clone, PartialEq)]
 pub enum Command {
     Ping,
-    Id,
+    Id(bool),
     Help,
     Menu,
-    Members,
+    Members(bool),
+    BanAllMembers(bool),
     GroupId,
     BanMember,
     AddMember(Option<String>),
@@ -133,13 +139,11 @@ impl Command {
     ) -> Result<Self, ParseError> {
         let command = match name {
             "ping" => Self::Ping,
-            "id" => {
-                arguments.next();
-                Self::Id
-            }
+            "id" => Self::Id(private_reply(arguments.by_ref(), true)?),
             "help" => Self::Help,
             "menu" => Self::Menu,
-            "members" => Self::Members,
+            "members" => Self::Members(private_reply(arguments.by_ref(), false)?),
+            "ban-all-members" => Self::BanAllMembers(confirmation(arguments.next())?),
             "group-id" => Self::GroupId,
             "ban-member" => {
                 arguments.next();
@@ -214,10 +218,11 @@ impl Command {
     fn name(&self) -> &'static str {
         match self {
             Self::Ping => "ping",
-            Self::Id => "id",
+            Self::Id(_) => "id",
             Self::Help => "help",
             Self::Menu => "menu",
-            Self::Members => "members",
+            Self::Members(_) => "members",
+            Self::BanAllMembers(_) => "ban-all-members",
             Self::GroupId => "group-id",
             Self::BanMember => "ban-member",
             Self::AddMember(_) => "add-member",
@@ -237,6 +242,50 @@ fn describe(prefix: char, name: &str, description: &str) -> String {
         "• *{prefix}{name}* - {}",
         description.replace("{prefix}", &prefix.to_string())
     )
+}
+
+fn private_reply<'a>(
+    arguments: impl Iterator<Item = &'a str>,
+    accepts_mention: bool,
+) -> Result<bool, ParseError> {
+    let mut private = true;
+    let mut mentions = 0;
+
+    for token in arguments {
+        let lowercase = token.to_lowercase();
+        let value = lowercase
+            .strip_prefix("private-reply=")
+            .unwrap_or(&lowercase);
+
+        if value == "true" || value == "false" {
+            private = value == "true";
+        } else if lowercase.starts_with("private-reply=") {
+            return Err(ParseError::InvalidArgument {
+                name: "private-reply",
+                value: token.to_owned(),
+            });
+        } else if accepts_mention && token.starts_with('@') && mentions == 0 {
+            mentions += 1;
+        } else {
+            return Err(ParseError::InvalidArgument {
+                name: "argumento",
+                value: token.to_owned(),
+            });
+        }
+    }
+
+    Ok(private)
+}
+
+fn confirmation(value: Option<&str>) -> Result<bool, ParseError> {
+    match value {
+        None => Ok(false),
+        Some(token) if token.eq_ignore_ascii_case("confirm") => Ok(true),
+        Some(token) => Err(ParseError::InvalidArgument {
+            name: "confirmação",
+            value: token.to_owned(),
+        }),
+    }
 }
 
 fn phone_number(value: Option<&str>) -> Result<String, ParseError> {
@@ -307,10 +356,11 @@ pub async fn handle_message(message: MessageContext, data: Arc<Data>) {
 async fn run(ctx: &Context, command: &Command) -> Result<(), Error> {
     match command {
         Command::Ping => info::ping::run(ctx).await,
-        Command::Id => info::id::run(ctx).await,
+        Command::Id(private_reply) => info::id::run(ctx, *private_reply).await,
         Command::Help => info::help::run(ctx).await,
         Command::Menu => info::menu::run(ctx).await,
-        Command::Members => group::members::run(ctx).await,
+        Command::Members(private_reply) => group::members::run(ctx, *private_reply).await,
+        Command::BanAllMembers(confirmed) => group::ban_all_members::run(ctx, *confirmed).await,
         Command::GroupId => group::group_id::run(ctx).await,
         Command::BanMember => group::ban_member::run(ctx).await,
         Command::AddMember(number) => group::add_member::run(ctx, number.as_deref()).await,
@@ -353,9 +403,51 @@ mod tests {
 
     #[test]
     fn id_accepts_an_optional_mention() {
-        assert_eq!(parse("!id"), Some(Ok(Command::Id)));
-        assert_eq!(parse("!id @5511999999999"), Some(Ok(Command::Id)));
-        assert_eq!(parse("!id @1 @2"), Some(Err(ParseError::TooManyArguments)));
+        assert_eq!(parse("!id"), Some(Ok(Command::Id(true))));
+        assert_eq!(parse("!id @5511999999999"), Some(Ok(Command::Id(true))));
+        assert!(matches!(parse("!id @1 @2"), Some(Err(_))));
+    }
+
+    #[test]
+    fn id_and_members_reply_privately_by_default() {
+        assert_eq!(parse("!members"), Some(Ok(Command::Members(true))));
+        assert_eq!(parse("!members false"), Some(Ok(Command::Members(false))));
+        assert_eq!(parse("!members TRUE"), Some(Ok(Command::Members(true))));
+        assert_eq!(
+            parse("!members private-reply=false"),
+            Some(Ok(Command::Members(false)))
+        );
+        assert_eq!(parse("!id @5511 false"), Some(Ok(Command::Id(false))));
+        assert_eq!(
+            parse("!id private-reply=false"),
+            Some(Ok(Command::Id(false)))
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_private_reply_values() {
+        assert!(matches!(
+            parse("!members private-reply=maybe"),
+            Some(Err(ParseError::InvalidArgument {
+                name: "private-reply",
+                ..
+            }))
+        ));
+        assert!(matches!(parse("!members @5511"), Some(Err(_))));
+        assert!(matches!(parse("!id false false2"), Some(Err(_))));
+    }
+
+    #[test]
+    fn ban_all_members_needs_the_confirm_argument_to_run() {
+        assert_eq!(
+            parse("!ban-all-members"),
+            Some(Ok(Command::BanAllMembers(false)))
+        );
+        assert_eq!(
+            parse("!ban-all-members CONFIRM"),
+            Some(Ok(Command::BanAllMembers(true)))
+        );
+        assert!(matches!(parse("!ban-all-members yes"), Some(Err(_))));
     }
 
     #[test]

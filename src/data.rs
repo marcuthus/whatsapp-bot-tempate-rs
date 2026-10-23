@@ -36,6 +36,30 @@ impl Context {
             .collect()
     }
 
+    pub fn is_group(&self) -> bool {
+        self.message.info.source.is_group
+    }
+
+    pub async fn send_privately(&self, text: impl Into<String>) -> Result<(), Error> {
+        let authors = self.author_jids();
+
+        let Some(destination) = authors
+            .iter()
+            .find(|jid| jid.is_pn())
+            .or(authors.first())
+            .cloned()
+        else {
+            return Ok(());
+        };
+
+        self.message
+            .client
+            .send_message(destination, wa::Message::text(text))
+            .await?;
+
+        Ok(())
+    }
+
     pub fn author_jids(&self) -> Vec<Jid> {
         let source = &self.message.info.source;
 

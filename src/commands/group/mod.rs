@@ -1,4 +1,5 @@
 pub mod add_member;
+pub mod ban_all_members;
 pub mod ban_member;
 pub mod create_group;
 pub mod everyone;

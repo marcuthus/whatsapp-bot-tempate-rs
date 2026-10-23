@@ -61,13 +61,14 @@ O prefixo padrão é `!` (veja `src/helpers/config.rs`).
 | `!ping`         | Mostra o ping do bot.                    |
 | `!help`         | Lista os comandos.                       |
 | `!menu`         | Menu de comandos por categoria.          |
-| `!id [@pessoa]` | Mostra o seu ID ou o da pessoa mencionada. |
-| `!members`      | Lista os membros do grupo e seus IDs.    |
+| `!id [@pessoa] [private-reply]` | Mostra o seu ID ou o da pessoa mencionada. `private-reply` (`true` por padrão) responde no privado. |
+| `!members [private-reply]` | Lista os membros do grupo e seus IDs. `private-reply` (`true` por padrão) envia a lista no privado. |
 | `!group-id`     | Mostra o ID do grupo.                    |
 | `!ban-member @pessoa` | Bane um membro do grupo (apenas admins). |
 | `!add-member [número]` | Adiciona um número ao grupo, ou todos os contatos da mensagem respondida; informa no final quais falharam (apenas admins). |
 | `!invite [número]` | Link de convite do grupo, ou envia no privado (apenas admins). |
 | `!leave`        | O bot sai do grupo (apenas admins).      |
+| `!ban-all-members confirm` | Bane todos os membros que não são admins (apenas admins; exige `confirm`). |
 | `!everyone [mensagem]` | Menciona todos os membros do grupo (apenas admins). |
 | `!create-group <nome>` | Cria um grupo, adiciona você como admin e o trava para admins (apenas dono). |
 | `!sticker [crop] [center]` | Cria uma figurinha. `crop`: `true` (padrão, preenche e corta), `false` (imagem inteira) ou `dented` (amassada); `center`: `true` (padrão) ou `false` (alinha no canto superior esquerdo). |

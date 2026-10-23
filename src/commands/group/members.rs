@@ -4,7 +4,7 @@ use crate::data::{Context, Error};
 
 const MEMBERS_PER_MESSAGE: usize = 40;
 
-pub async fn run(ctx: &Context) -> Result<(), Error> {
+pub async fn run(ctx: &Context, private_reply: bool) -> Result<(), Error> {
     let source = &ctx.message.info.source;
 
     if !source.is_group {
@@ -38,7 +38,15 @@ pub async fn run(ctx: &Context) -> Result<(), Error> {
     let title = format!("👥 {} ({} membros)", metadata.subject, lines.len());
 
     for page in paginate(&title, &lines) {
-        ctx.message.send_message(wa::Message::text(page)).await?;
+        if private_reply {
+            ctx.send_privately(page).await?;
+        } else {
+            ctx.message.send_message(wa::Message::text(page)).await?;
+        }
+    }
+
+    if private_reply {
+        ctx.react("📩").await?;
     }
 
     Ok(())
