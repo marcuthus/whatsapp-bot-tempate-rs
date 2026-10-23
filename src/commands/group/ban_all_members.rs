@@ -2,7 +2,7 @@ use whatsapp_rust::{features::ParticipantChangeResponse, prelude::*};
 
 use crate::{
     data::{Context, Error},
-    utils::checks::{belongs_to, require_group_admin},
+    utils::checks::{belongs_to, protection_of, require_group_admin},
 };
 
 const BATCH_SIZE: usize = 50;
@@ -14,22 +14,29 @@ pub async fn run(ctx: &Context, confirmed: bool) -> Result<(), Error> {
     let metadata = require_group_admin(ctx).await?;
     let author_ids = ctx.author_ids();
 
-    let targets = metadata
-        .participants
-        .iter()
-        .filter(|participant| {
-            !participant.is_admin()
-                && ![
-                    Some(&participant.jid),
-                    participant.lid.as_ref(),
-                    participant.phone_number.as_ref(),
-                ]
-                .into_iter()
-                .flatten()
-                .any(|jid| belongs_to(jid, &author_ids))
-        })
-        .map(|participant| participant.jid.clone())
-        .collect::<Vec<Jid>>();
+    let mut targets: Vec<Jid> = Vec::new();
+
+    for participant in &metadata.participants {
+        let is_requester = [
+            Some(&participant.jid),
+            participant.lid.as_ref(),
+            participant.phone_number.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        .any(|jid| belongs_to(jid, &author_ids));
+
+        if participant.is_admin()
+            || is_requester
+            || protection_of(ctx, &metadata, &participant.jid)
+                .await
+                .is_some()
+        {
+            continue;
+        }
+
+        targets.push(participant.jid.clone());
+    }
 
     if targets.is_empty() {
         ctx.reply("Não há membros para banir: só restam administradores.")

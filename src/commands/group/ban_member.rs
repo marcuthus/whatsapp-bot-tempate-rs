@@ -1,6 +1,6 @@
 use crate::{
     data::{Context, Error},
-    utils::checks::{belongs_to, require_group_admin},
+    utils::checks::{Protected, belongs_to, protection_of, require_group_admin},
 };
 
 pub async fn run(ctx: &Context) -> Result<(), Error> {
@@ -10,11 +10,23 @@ pub async fn run(ctx: &Context) -> Result<(), Error> {
         return Ok(());
     };
 
-    require_group_admin(ctx).await?;
+    let metadata = require_group_admin(ctx).await?;
 
     if belongs_to(&target, &ctx.author_ids()) {
         ctx.reply("Você não pode banir a si mesmo.").await?;
         return Ok(());
+    }
+
+    match protection_of(ctx, &metadata, &target).await {
+        Some(Protected::Bot) => {
+            ctx.reply("Não posso banir a mim mesmo.").await?;
+            return Ok(());
+        }
+        Some(Protected::Owner) => {
+            ctx.reply("Não posso banir o meu administrador.").await?;
+            return Ok(());
+        }
+        None => {}
     }
 
     let results = ctx

@@ -4,7 +4,7 @@ use crate::{
 };
 
 pub async fn run(ctx: &Context) -> Result<(), Error> {
-    require_bot_owner(ctx)?;
+    require_bot_owner(ctx).await?;
 
     let seconds = ctx.data.started_at.elapsed().as_secs();
 
