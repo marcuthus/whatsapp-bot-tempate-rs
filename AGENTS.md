@@ -98,3 +98,9 @@ Use `whatsapp_rust::prelude::*` for the common client types (`Bot`, `MessageCont
 
 - `!id` and `!members` accept `private-reply` (`true` by default): the answer is sent to the sender in a private chat through `Context::send_privately` and the group message is reacted to with 📩; `false` answers in the group. The flag is parsed by `private_reply` in `src/commands/mod.rs` (`true`, `false` or `private-reply=true|false`).
 - `!ban-all-members` removes every non-admin member (except the sender) in batches of 50 and lists the failures. It does nothing without the `confirm` argument; it only warns how many members would be removed.
+
+## Media Conversion
+
+- `!sticker2media` turns a replied sticker into a PNG (transparency becomes white) or, when the WebP is animated, into an H.264 MP4 sent as a GIF-style video. Frames are decoded with the `image` crate and encoded by the `ffmpeg` binary (`src/commands/media/sticker2media.rs`).
+- `ffmpeg` must be on the `PATH` (the Dockerfile installs it); set `FFMPEG_PATH` to use another binary. Without it, animated stickers get a friendly error and static ones still work; the MP4 test is skipped when `ffmpeg` is missing.
+- `!profile-photo [@person]` fetches the picture with `client.contacts().get_profile_picture` and downloads it through the client's HTTP client; it explains when the picture is missing or private.

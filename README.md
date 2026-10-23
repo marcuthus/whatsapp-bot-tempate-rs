@@ -72,6 +72,8 @@ O prefixo padrão é `!` (veja `src/helpers/config.rs`).
 | `!everyone [mensagem]` | Menciona todos os membros do grupo (apenas admins). |
 | `!create-group <nome>` | Cria um grupo, adiciona você como admin e o trava para admins (apenas dono). |
 | `!sticker [crop] [center]` | Cria uma figurinha. `crop`: `true` (padrão, preenche e corta), `false` (imagem inteira) ou `dented` (amassada); `center`: `true` (padrão) ou `false` (alinha no canto superior esquerdo). |
+| `!sticker2media` | Transforma um sticker em imagem ou, se for animado, em vídeo (responda o sticker com o comando). Requer o `ffmpeg` para stickers animados. |
+| `!profile-photo [@pessoa]` | Envia a sua foto de perfil ou a da pessoa mencionada. |
 | `!sum <a> <b>`  | Soma dois números (exemplo).             |
 | `!uptime`       | Tempo online do bot (apenas dono).       |
 

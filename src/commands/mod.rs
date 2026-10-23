@@ -25,7 +25,7 @@ const CATEGORY_LABELS: [(&str, &str); 5] = [
     ("admin", "🔐 Administração"),
 ];
 
-const CATALOG: [(&str, &str, &str); 16] = [
+const CATALOG: [(&str, &str, &str); 18] = [
     ("info", "ping", "Envia o ping do bot."),
     (
         "info",
@@ -81,6 +81,16 @@ const CATALOG: [(&str, &str, &str); 16] = [
         "Cria uma figurinha a partir de uma imagem (legenda ou resposta). Uso: {prefix}sticker [crop: true|false|dented] [center: true|false]",
     ),
     (
+        "media",
+        "sticker2media",
+        "Transforma um sticker em imagem (ou em vídeo, se for animado). Responda um sticker com {prefix}sticker2media.",
+    ),
+    (
+        "media",
+        "profile-photo",
+        "Envia a sua foto de perfil ou a da pessoa mencionada. Uso: {prefix}profile-photo [@pessoa]",
+    ),
+    (
         "example",
         "sum",
         "Soma dois números. Uso: {prefix}sum <a> <b>",
@@ -108,6 +118,8 @@ pub enum Command {
     Everyone(String),
     CreateGroup(String),
     Sticker(StickerOptions),
+    Sticker2Media,
+    ProfilePhoto,
     Sum(f64, f64),
     Uptime,
 }
@@ -173,6 +185,11 @@ impl Command {
                 Self::CreateGroup(group_name)
             }
             "sticker" => Self::Sticker(StickerOptions::parse(arguments.next(), arguments.next())?),
+            "sticker2media" => Self::Sticker2Media,
+            "profile-photo" => {
+                arguments.next();
+                Self::ProfilePhoto
+            }
             "sum" => Self::Sum(
                 number(arguments.next(), "a")?,
                 number(arguments.next(), "b")?,
@@ -231,6 +248,8 @@ impl Command {
             Self::Everyone(_) => "everyone",
             Self::CreateGroup(_) => "create-group",
             Self::Sticker(_) => "sticker",
+            Self::Sticker2Media => "sticker2media",
+            Self::ProfilePhoto => "profile-photo",
             Self::Sum(..) => "sum",
             Self::Uptime => "uptime",
         }
@@ -369,6 +388,8 @@ async fn run(ctx: &Context, command: &Command) -> Result<(), Error> {
         Command::Everyone(announcement) => group::everyone::run(ctx, announcement).await,
         Command::CreateGroup(name) => group::create_group::run(ctx, name).await,
         Command::Sticker(options) => media::sticker::run(ctx, *options).await,
+        Command::Sticker2Media => media::sticker2media::run(ctx).await,
+        Command::ProfilePhoto => media::profile_photo::run(ctx).await,
         Command::Sum(a, b) => example::sum::run(ctx, *a, *b).await,
         Command::Uptime => admin::uptime::run(ctx).await,
     }
@@ -506,6 +527,20 @@ mod tests {
         assert_eq!(
             parse("!everyone Reunião às 20h"),
             Some(Ok(Command::Everyone(String::from("Reunião às 20h"))))
+        );
+    }
+
+    #[test]
+    fn parses_sticker2media_and_profile_photo() {
+        assert_eq!(parse("!sticker2media"), Some(Ok(Command::Sticker2Media)));
+        assert_eq!(parse("!profile-photo"), Some(Ok(Command::ProfilePhoto)));
+        assert_eq!(
+            parse("!profile-photo @5511999999999"),
+            Some(Ok(Command::ProfilePhoto))
+        );
+        assert_eq!(
+            parse("!profile-photo @1 @2"),
+            Some(Err(ParseError::TooManyArguments))
         );
     }
 
